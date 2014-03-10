@@ -93,7 +93,7 @@ buyer_id(Id) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 init([Id, Amount, Price]) ->
   gproc_ps:subscribe(l, {ex, sell}),
-  gproc_ps:publish(l, {ex, buy}, {buyer_id(Id), Amount, Price}),
+  gproc_ps:publish(l, {ex, buy}, {Id, Amount, Price}),
   {ok, #state{id=Id, amount=Amount, price=Price}}.
 
 handle_call(stop, _From, State) ->
@@ -147,12 +147,18 @@ handle_info({gproc_ps_event, {ex, sell}, {Seller, SellAmount, SellPrice}},
                    amount=Amount,
                    price=Price}=State)
   when SellPrice =< Price ->
+  io:format("got a good sell offer~n"),
   Ref = make_ref(),
   BuyAmount = min(Amount, SellAmount),
-  ex_seller:buy_offer(Seller, Id, BuyAmount),
+  io:format("ex_seller:buy_offer(~p,~p,~p,~p)~n",
+            [Seller, Id, Ref, BuyAmount]),
+  ex_seller:buy_offer(Seller, Id, Ref, BuyAmount),
   PendingBuys = [{Ref, Seller, BuyAmount, SellPrice} | State#state.pending_buys ],
   {noreply, State#state{amount=Amount-BuyAmount,
-                        pending_buys=PendingBuys}}.
+                        pending_buys=PendingBuys}};
+handle_info({gproc_ps_event, {ex, sell}, {_Seller, _SellAmount, _SellPrice}},
+            #state{}=State) ->
+  {noreply, State}.
 
 
 

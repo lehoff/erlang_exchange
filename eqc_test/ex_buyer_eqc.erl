@@ -15,14 +15,15 @@ api_spec() ->
                      functions = [ #api_fun{ name = subscribe, arity = 2},
                                    #api_fun{ name = publish,   arity = 3}
                                  ]
-                    }
+                    },
+                 #api_module{
+                    name = ex_seller,
+                    functions = [ #api_fun{ name = buy_offer, arity=4}
+                                ]
+                   }
                 ]}.
   
 
-init_buyer_lang(Id, Amount, Price) ->
-  ?SEQ(?EVENT(gproc_ps, subscribe, [l, {ex, sell}], true),
-       ?EVENT(gproc_ps, publish,   [l, {ex, buy}, {{ex_buyer,Id},Amount, Price}], ok)
-      ).
 
 initial_state() ->
   [].
@@ -49,8 +50,8 @@ start() ->
   application:start(gproc).
 
 stop(S) ->
-  [ ex_buyer:stop(Id) || Id <- S ],
-  application:stop(gproc).
+  [ ex_buyer:stop(Id) || {Id, _Pid} <- S ],
+  ok.
 
 
 
@@ -58,26 +59,57 @@ stop(S) ->
 %% buyer
 
 buyer(Id, Amount, Price) ->
-  eqc_mocking:init_lang(?MODULE:init_buyer_lang(Id, Amount, Price), ?MODULE:api_spec()),
-  ex_buyer:start_link(Id, Amount, Price).
+  {ok, Pid} = ex_buyer:start_link(Id, Amount, Price),
+  Pid.
 
 buyer_args(S) ->
   [buyer_id(S), amount(), price()].
 
 buyer_callouts(_S, [Id, Amount, Price]) ->
   ?SEQ(?CALLOUT(gproc_ps, subscribe, [l, {ex, sell}], true),
-       ?CALLOUT(gproc_ps, publish,   [l, {ex, buy}, {{ex_buyer,Id},Amount, Price}], ok)
+       ?CALLOUT(gproc_ps, publish,   [l, {ex, buy},
+                                      {Id,Amount, Price}],
+%                                       ?WILDCARD}],
+                ok)
       ).
 
 
-buyer_next(S, _V, [Id, _Amount, _Price]) ->
-  [Id|S].
+buyer_next(S, Pid, [Id, _Amount, _Price]) ->
+  [{Id, Pid}|S].
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% broadcast of a {ex,sell} intention
+%% for testing we only try it on one of the buyers
+
+publish_sell({_BuyerId,BuyerPid}, SellerId, SellAmount, SellPrice) ->
+  BuyerPid ! {gproc_ps_event, {ex, sell}, {SellerId, SellAmount, SellPrice}}.
+
+publish_sell_pre(S) ->
+  S /= [].
+
+publish_sell_args(S) ->
+  [existing_buyer(S), seller_id(), amount(), price()].
+
+publish_sell_callouts(_S, [{BuyerId,_}, SellerId, SellAmount, _SellPrice]) ->
+  ?CALLOUT(ex_seller, buy_offer, [SellerId, BuyerId, ?WILDCARD, SellAmount], ok).
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% GENERATORS
 buyer_id(S) ->
   ?SUCHTHAT(N, pos_int(),
-            not lists:member(N, S)).
+            not lists:member(N, buyer_ids(S))).
+
+buyer_ids(S) ->
+  [ Id ||  {Id, _} <- S ].
+
+existing_buyer(S) ->
+  elements(S).
+
+seller_id() ->
+  pos_int().
 
 amount() ->
   pos_int().
