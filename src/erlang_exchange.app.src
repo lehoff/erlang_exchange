@@ -1,0 +1,13 @@
+%% -*- mode: erlang;erlang-indent-level: 4;indent-tabs-mode: nil -*-
+%% ex: ts=4 sw=4 ft=erlang et
+
+{application,erlang_exchange,
+             [{description,"Erlang Exchange - Doing a simple stock exchange using processes"},
+              {vsn,"0.0.1"},
+              {modules,[%ex_exchange,
+              ex_buyer%, ex_seller
+              ]},
+              {registered,[]},
+              {applications,[kernel,stdlib,gproc]},
+              {start_phases,[]}
+              ]}.
