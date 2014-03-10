@@ -62,7 +62,7 @@
 -spec start_link(Id::integer(), Amount::integer(), Price::float()) ->
                     {'ok', pid()} | 'ignore' | {'error',term()}.
 start_link(Id, Amount, Price) ->
-  gen_server:start_link({via, gproc, buyer_id(Id)},?MODULE, [Id, Amount, Price], []).
+  gen_server:start_link({via, gproc, {n,l,buyer_id(Id)}},?MODULE, [Id, Amount, Price], []).
 
 stop(Pid) ->
   gen_server:call(Pid, stop).

@@ -10,8 +10,8 @@ ERLC_OPTS = +debug_info
 
 CT_SUITES = ex_buyer_eqc
 
-REBAR_DEPS_DIR=${DEPS_DIR}
+##REBAR_DEPS_DIR=${DEPS_DIR}
 ERL_LIBS:=./deps:${ERL_LIBS}
 
 shell:
-	_rel/bin/erlang_exchange -pz test
+	erl -pz ebin -pz deps/*/ebin -pz test

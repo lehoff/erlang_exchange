@@ -39,8 +39,7 @@ initial_state() ->
 -spec prop_buyer() -> eqc:property().
 prop_buyer() ->
   ?SETUP(fun() -> 
-             %% setup mocking here
-%             application:start(gproc),
+             %% setup mocking here 
              eqc_mocking:start_mocking(api_spec()),  
              fun() -> ok end %% Teardown function
          end, 
