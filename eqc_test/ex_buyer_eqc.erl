@@ -64,8 +64,11 @@ buyer(Id, Amount, Price) ->
 buyer_args(S) ->
   [buyer_id(S), amount(), price()].
 
-buyer_post(_S, [Id,Amount,Price], _)  ->
-  eqc_mocking:check_callouts(?MODULE:init_buyer_lang(Id, Amount, Price)).
+buyer_callouts(_S, [Id, Amount, Price]) ->
+  ?SEQ(?CALLOUT(gproc_ps, subscribe, [l, {ex, sell}], true),
+       ?CALLOUT(gproc_ps, publish,   [l, {ex, buy}, {{ex_buyer,Id},Amount, Price}], ok)
+      ).
+
 
 buyer_next(S, _V, [Id, _Amount, _Price]) ->
   [Id|S].
