@@ -62,8 +62,11 @@ buyer(Id, Amount, Price) ->
   {ok, Pid} = ex_buyer:start_link(Id, Amount, Price),
   Pid.
 
-buyer_args(S) ->
-  [buyer_id(S), amount(), price()].
+buyer_args(_S) ->
+  [buyer_id(), amount(), price()].
+
+buyer_pre(S, [Id, _, _]) ->
+  not lists:member(Id, buyer_ids(S)).
 
 buyer_callouts(_S, [Id, Amount, Price]) ->
   ?SEQ(?CALLOUT(gproc_ps, subscribe, [l, {ex, sell}], true),
@@ -83,10 +86,15 @@ buyer_next(S, Pid, [Id, _Amount, _Price]) ->
 %% for testing we only try it on one of the buyers
 
 publish_sell({_BuyerId,BuyerPid}, SellerId, SellAmount, SellPrice) ->
-  BuyerPid ! {gproc_ps_event, {ex, sell}, {SellerId, SellAmount, SellPrice}}.
+  BuyerPid ! {gproc_ps_event, {ex, sell}, {SellerId, SellAmount, SellPrice}},
+  timer:sleep(100),
+  ok.
 
 publish_sell_pre(S) ->
   S /= [].
+
+publish_sell_pre(S, [{_BuyerId,_BuyerPid}=Buyer, _SellerId, _SellAmount, _SellPrice]) ->
+  lists:member(Buyer, S).
 
 publish_sell_args(S) ->
   [existing_buyer(S), seller_id(), amount(), price()].
@@ -98,12 +106,9 @@ publish_sell_callouts(_S, [{BuyerId,_}, SellerId, SellAmount, _SellPrice]) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% GENERATORS
-buyer_id(S) ->
-  ?SUCHTHAT(N, pos_int(),
-            not lists:member(N, buyer_ids(S))).
+buyer_id() ->
+  pos_int().
 
-buyer_ids(S) ->
-  [ Id ||  {Id, _} <- S ].
 
 existing_buyer(S) ->
   elements(S).
@@ -120,3 +125,8 @@ price() ->
 pos_int() ->
   ?SUCHTHAT(N, int(), N>0).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% helpers
+
+buyer_ids(S) ->
+  [ Id ||  {Id, _} <- S ].
