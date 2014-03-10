@@ -64,11 +64,11 @@
 start_link(Id, Amount, Price) ->
   gen_server:start_link({via, gproc, {n,l,buyer_id(Id)}},?MODULE, [Id, Amount, Price], []).
 
-stop(Pid) ->
-  gen_server:call(Pid, stop).
+stop(Id) ->
+  gen_server:call(id_pid(Id), stop).
 
-status(Pid) ->
-  gen_server:call(Pid, status).
+status(Id) ->
+  gen_server:call(id_pid(Id), status).
 
 buy_offer_response(Id, Ref, Amount) ->
   cast(Id, {buy_offer_response, Ref, Amount}).
@@ -80,8 +80,11 @@ sell_complete(Id, Ref) ->
   cast(Id, {sell_complete, Ref}).
 
 cast(Id, Msg) ->
-  gen_server:cast(gproc:whereis(buyer_id(Id)), Msg).                        
-  
+  gen_server:cast(id_pid(Id), Msg).                        
+
+id_pid(Id) ->
+  gproc:whereis_name({n,l,buyer_id(Id)}).
+
 buyer_id(Id) ->
   {ex_buyer, Id}.
 

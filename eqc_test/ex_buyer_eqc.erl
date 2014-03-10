@@ -32,17 +32,25 @@ initial_state() ->
 prop_buyer() ->
   ?SETUP(fun() -> 
              %% setup mocking here
-             application:start(gproc),
              eqc_mocking:start_mocking(api_spec()),  
              fun() -> application:stop(gproc) end %% Teardown function
          end, 
   ?FORALL(Cmds, commands(?MODULE),
-    begin
-      {H, S, Res} = run_commands(?MODULE,Cmds),
-      pretty_commands(?MODULE, Cmds, {H, S, Res},
-                      Res == ok)
-    end)).
+          begin
+            start(),
+            {H, S, Res} = run_commands(?MODULE,Cmds),
+            stop(S),
+            pretty_commands(?MODULE, Cmds, {H, S, Res},
+                            Res == ok)
+          end)).
 
+
+start() ->
+  application:start(gproc).
+
+stop(S) ->
+  [ ex_buyer:stop(Id) || Id <- S ],
+  application:stop(gproc).
 
 
 
