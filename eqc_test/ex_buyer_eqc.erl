@@ -5,6 +5,10 @@
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_component.hrl").
 
+-record(state,
+  { processes = []
+}).
+
 
 api_spec() ->
   #api_spec{
@@ -26,7 +30,7 @@ api_spec() ->
 
 
 initial_state() ->
-  [].
+  #state{}.
 
 %% @doc Default generated property
 -spec prop_buyer() -> eqc:property().
@@ -49,8 +53,8 @@ prop_buyer() ->
 start() ->
   application:start(gproc).
 
-stop(S) ->
-  [ ex_buyer:stop(Id) || {Id, _Pid} <- S ],
+stop(#state { processes = Ps }) ->
+  [ ex_buyer:stop(Id) || {Id, _Pid} <- Ps ],
   ok.
 
 
@@ -72,14 +76,12 @@ buyer_callouts(_S, [Id, Amount, Price]) ->
   ?SEQ(?CALLOUT(gproc_ps, subscribe, [l, {ex, sell}], true),
        ?CALLOUT(gproc_ps, publish,   [l, {ex, buy},
                                       {Id,Amount, Price}],
-%                                       ?WILDCARD}],
                 ok)
       ).
 
 
-buyer_next(S, Pid, [Id, _Amount, _Price]) ->
-  [{Id, Pid}|S].
-
+buyer_next(#state { processes = Ps } = S, Pid, [Id, _Amount, _Price]) ->
+  S#state { processes = [{Id, Pid}|Ps]}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% broadcast of a {ex,sell} intention
@@ -87,31 +89,33 @@ buyer_next(S, Pid, [Id, _Amount, _Price]) ->
 
 publish_sell({_BuyerId,BuyerPid}, SellerId, SellAmount, SellPrice) ->
   BuyerPid ! {gproc_ps_event, {ex, sell}, {SellerId, SellAmount, SellPrice}},
-  timer:sleep(100),
+  sync(BuyerPid),
   ok.
 
-publish_sell_pre(S) ->
-  S /= [].
-
-publish_sell_pre(S, [{_BuyerId,_BuyerPid}=Buyer, _SellerId, _SellAmount, _SellPrice]) ->
-  lists:member(Buyer, S).
+publish_sell_pre(#state { processes = Ps}) ->
+  Ps /= [].
 
 publish_sell_args(S) ->
   [existing_buyer(S), seller_id(), amount(), price()].
 
-publish_sell_callouts(_S, [{BuyerId,_}, SellerId, SellAmount, _SellPrice]) ->
+publish_sell_callouts(_S, [{BuyerId, _}, SellerId, SellAmount, _SellPrice]) ->
   ?CALLOUT(ex_seller, buy_offer, [SellerId, BuyerId, ?WILDCARD, SellAmount], ok).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% sending of a buy offer
+%% buy_offer_pre(S) -> buyers_present(S).
 
+%% buy_offer_callouts(_S, [{BuyerId, _}, SellerId, SellAmount, _SellPrice] = Args) ->
+%%   ?SEQ( ?SELFCALL(publish_sell, Args),
+%%         ?CALLOUT(ex_seller, buy_offer, [SellerId, BuyerId, ?WILDCARD, SellAmount], ok) ).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% GENERATORS
 buyer_id() ->
   pos_int().
 
-
-existing_buyer(S) ->
-  elements(S).
+existing_buyer(#state { processes = Ps }) ->
+  elements(Ps).
 
 seller_id() ->
   pos_int().
@@ -123,10 +127,16 @@ price() ->
   pos_int().
 
 pos_int() ->
-  ?SUCHTHAT(N, int(), N>0).
+  ?LET(N, nat(), N+1).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% helpers
 
-buyer_ids(S) ->
-  [ Id ||  {Id, _} <- S ].
+buyer_ids(#state { processes = Ps }) ->
+  [ Id ||  {Id, _} <- Ps ].
+
+buyers_present(#state { processes = [] }) -> false;
+buyers_present(#state { processes = [_|_] }) -> true.
+
+sync(Id) ->
+  ex_buyer:sync(Id).
